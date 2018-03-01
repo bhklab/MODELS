@@ -1,3 +1,9 @@
+############################# FeatTrans_Path is a feature transformation function to discretize the input continuous variables
+############################# Input variables of this function are as follows:
+############################# 1) FeatFrame: Feature frame (rows as samples and columns as features) 
+############################# 2) TargetFeat: Features to be discretized and returned as output
+############################# 3) ClustNum: Number of classes for the discretized version of the variables in output 
+
 FeatTransform_Bin <- function(FeatureFrame, TargetFeat, ClustNum=2){
   
   for(FeatIter in TargetFeat){
@@ -35,5 +41,4 @@ FeatTransform_Bin <- function(FeatureFrame, TargetFeat, ClustNum=2){
   ###########
   return(FeatureFrame_Bin)
 }
-
 

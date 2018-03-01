@@ -1,115 +1,89 @@
-CrossVal <- function(FeatFrame, ObsVec, FeaturNum, FoldNum, BS_Num,FeatSelect_Num=FALSE,FeatSelect_Cat=FALSE){
-  
-  Models <- c("GLMnet_Pred", "RF_Pred", "SVM_Pred", "NNET_Pred", "CentClass_Pred")
-  
-  PredList <- list()
-  for(BSiter in 1:BS_Num){
-    print(paste("BS ", BSiter, sep = "", collapse = ""))
-    folds <- createFolds(y=ObsVec, k = FoldNum, list = TRUE, returnTrain = TRUE)
-    
-    PredMat <- c()
-    ObservVec <- c()
-    for(Folditer in 1:FoldNum){
-      print(paste("Fold ", Folditer, sep = "", collapse = ""))
-      InputInd <- folds[[Folditer]]
-      ObservVec <- c(ObservVec, ObsVec[-InputInd])
-      # TrainFeat <- matrix(FeatFrame[InputInd,], ncol = ncol(FeatFrame))
-      TrainFeat <- FeatFrame[InputInd,]
-      TrainObs <- ObsVec[InputInd]
-      #################### Feature selection
-      FeatList <- FeatSelect(FeatFrame,InputInd,TrainFeat, TestFeat, FeaturNum,
-                             FeatSelect_Num,FeatSelect_Cat)
-      TrainFeat <- FeatList$Training
-      TestFeat <- FeatList$Testing
+############################# CrossVal is a function for cross validation 
+############################# Input variables of this function are as follows:
+############################# 1) FeatFrame: Feature frame (rows as samples and columns as features) 
+############################# 2) ObsVec: Observed classess
+############################# 3) FeaturFrac: Fraction of features to be kept in output of each feature selection approach
+############################# 4) FoldNum: Number of Folds for cross validation
+############################# 5) Models: Names of predictive models to be used for predicting observed classes
+############################# 6) FeatSelMethods: Names of feature selection approaches (in order)
+############################# 7) Biomarkers: Biomarkers (for example vector of gene names) if user want to predict observed classes using predefined biomarkers in a multivariate logistic regression model
+############################# 8) FixedFeatFrame: Frame of features whcih are fixed and will not be processed using feature selection approaches
+############################# 9) Folds: Pre-defined list of samples to be used in each fold of cross validation
+############################# 10) Augment: Logical variable to determine use of data augmentation for imbalanced observed classes (within training set)
+############################# 11) FeatSelect_Num: Logical variable to determine if variables are numerical
+############################# 12) Aug_VarCutoff: Maximum variance to be used for data augmentation
 
-      
-      # threads <- get.thread.count()
-      # set.thread.count(threads)
-      # 
-      # FeatFrame_mRMR <- data.frame(cbind(TrainFeat, TrainObs))
-      # feature_data <- mRMR.data(data = FeatFrame_mRMR)#data.frame(TrainFeat))
-
-      # filter <- mRMR.classic("mRMRe.Filter", data = feature_data,
-      #                        target_indices = ncol(FeatFrame_mRMR),
-      #                        feature_count = FeaturNum)
-      # TargetFeatures <- solutions(filter)$`1`
-      
-      # TargetFeatures <- c(1:1000)
-      
-      # TrainFeat <- TrainFeat[,TargetFeatures]
-
-      # control <- rfeControl(functions=rfFuncs, method="cv", number=10)
-      # results <- rfe(FeatFrame_mRMR[,(1:(ncol(FeatFrame_mRMR)-1))], FeatFrame_mRMR[,ncol(FeatFrame_mRMR)],
-      #                sizes=c(1:FeaturNum), rfeControl=control)
-      # print(results)
-      # predictors(results)
-      # print(results$fit$importance[,"MeanDecreaseGini"]) #
-      # TargetFeatures <- sort(results$fit$importance[,"MeanDecreaseAccuracy"], decreasing = T, index.return=T)[[2]][1:FeaturNum]
-      # stop("caret yess :)")
-      # print(TargetFeatures)
-      ####################
-      # TestFeat <- matrix(FeatFrame[-InputInd,TargetFeatures], ncol = length(TargetFeatures))
-      # TrainFeat <- TrainFeat[,TargetFeatures]
-      # TestFeat <- FeatFrame[-InputInd,na.omit(TargetFeatures)]
-      
-      #print("Implementing univariate model")
-      ####################
-      if("CentClass_Pred" %in% Models){
-        PredMat_Aux <- CentClass_Pred(TrainFeat, TrainObs, TestFeat)
-        Models_2 <- Models[-which(Models == "CentClass_Pred")]
-      }else{
-        PredMat_Aux <- c()
-        Models_2 <- Models
-      }
-      
-      ###################
-      Uni_PredList <- Univar_Pred(TrainFeat, TrainObs,TestFeat)
-      Uni_Pred <- Uni_PredList$PredVal
-      # SelectedFeat <- c(1:ncol(TrainFeat))
-      SelectedFeat <- Uni_PredList$GoodFeat
-      print(length(SelectedFeat))
-      ###############
-      threads <- get.thread.count()
-      set.thread.count(threads)
-
-      train_mRMR <- TrainFeat[,SelectedFeat]
-      train_mRMR$Obs <- TrainObs
-      FeatFrame_mRMR <- data.frame(train_mRMR)
-      
-      feature_data <- mRMR.data(data = FeatFrame_mRMR)#data.frame(TrainFeat))
-      
-      filter <- mRMR.classic("mRMRe.Filter", data = feature_data,
-                             target_indices = which(colnames(train_mRMR) == "Obs"),
-                             #solution_count = 10,
-                             feature_count = floor(0.5*length(SelectedFeat)))
-      # print(solutions(filter))
-      SelectedFeat <- SelectedFeat[unlist(solutions(filter))]
-      # print(SelectedFeat)
-      # print(names(TrainFeat[,SelectedFeat]))
-      ##############
-      
-      PredMat_Aux <- cbind(PredMat_Aux, Uni_Pred)
-      for(ModelIter in 1:length(Models_2)){
-        MatchedFun <- match.fun(Models[ModelIter])
-        PredMat_Aux <- cbind(PredMat_Aux, MatchedFun(TrainFeat[,SelectedFeat], TrainObs, TestFeat[,SelectedFeat]))
-        
-      }
-
-      Ensemble <- unlist(apply(PredMat_Aux, 1, function(X){names(table(X))[
-        which(table(X) == max(table(X)))[sample.int(length(which(table(X) == max(table(X)))),1)]]}))
-      PredMat <- rbind(PredMat, cbind(PredMat_Aux, Ensemble))
-    }
-    #############
-    colnames(PredMat) <- c("CentClass","Univariate", gsub("_Pred", "", Models_2),
-                           "Ensemble")
-    
-    PredList[[BSiter]] <- data.frame(PredMat)
+CrossVal <- function(FeatFrame, ObsVec, FeaturFrac, FoldNum, Models,FeatSelMethods,Biomarkers=NULL, FixedFeatFrame = NULL,
+                     Folds = NA, Augment=FALSE,FeatSelect_Num=FALSE, Aug_VarCutoff){
+  if(is.na(Folds)){
+    Folds <- createFolds(y=ObsVec, k = FoldNum, list = TRUE, returnTrain = TRUE)
   }
-  names(PredList) <- paste(rep("BS", BS_Num), seq(1,BS_Num), sep = "_")
-  ##############
-  ResponseList <- list(Predictions=PredList, Observations=ObservVec)
-  #############
+
   
-  return(ResponseList)
+  PredMat <- c()
+  ObservVec <- c()
+  for(Folditer in 1:FoldNum){
+    print(paste("Fold ", Folditer, sep = "", collapse = ""))
+    InputInd <- Folds[[Folditer]]
+    ObservVec <- c(ObservVec, ObsVec[-InputInd])
+    
+    TrainFeat <- FeatFrame[InputInd,]
+    TrainObs <- ObsVec[InputInd]
+    TestFeat <- FeatFrame[-InputInd,]
+    ################### Tissue feature separation
+    ################### Feature selection
+    TargetFeatures <- FeatSelect_Wrap(TrainFeat, TrainObs, FeaturFrac,FeatSelect_Num, FeatSelMethods)
+    if("Biomarker_Pred" %in% Models){
+      TargetFeatures <- unique(c(TargetFeatures, which(gsub("X", "", colnames(TrainFeat)) %in% Biomarkers)))
+    }
+    ###################
+    TrainFeat <- TrainFeat[,TargetFeatures]
+    TestFeat <- TestFeat[,TargetFeatures]
+    #################### Data augmentation
+    if(Augment){
+      AugList <- DataAug(TrainFeat, TrainObs, Aug_VarCutoff)
+      TrainFeat <- NULL
+      TrainObs <- NULL
+      TrainFeat <- AugList$Feat
+      TrainObs <- AugList$Obs
+    }
+    ###################
+    if(!is.null(FixedFeatFrame)){
+      FixedFrame_Train <- data.frame(FixedFeatFrame[InputInd,])
+      names(FixedFrame_Train) <- names(FixedFeatFrame)
+      TrainFeat <- cbind(TrainFeat, FixedFrame_Train)
+      
+      FixedFrame_Test <- data.frame(FixedFeatFrame[-InputInd,])
+      names(FixedFrame_Test) <- names(FixedFeatFrame)
+      TestFeat <- cbind(TestFeat, FixedFrame_Test)
+    }
+    ################### Predictive models
+    PredMat_Aux <- c()           
+    for(ModelIter in 1:length(Models)){
+      MatchedFun <- match.fun(Models[ModelIter])
+      if(Models[ModelIter] == "Univar_Pred"){
+        PredVec <- MatchedFun(TrainFeat, TrainObs, TestFeat)$PredVal
+      }else if(Models[ModelIter] == "Biomarker_Pred"){
+        PredVec <- MatchedFun(TrainFeat, TrainObs, TestFeat, Biomarkers)
+      }else{
+        PredVec <- MatchedFun(TrainFeat, TrainObs, TestFeat)
+      }
+      
+      
+      print(Models[ModelIter])
+      PredMat_Aux <- cbind(PredMat_Aux, PredVec)
+    }
+    ###################
+    Ensemble <- unlist(apply(PredMat_Aux, 1, function(X){names(table(X))[
+      which(table(X) == max(table(X)))[sample.int(length(which(table(X) == max(table(X)))),1)]]}))
+    ###################
+    PredMat <- rbind(PredMat, cbind(PredMat_Aux, Ensemble))
+  }
+  #############
+  colnames(PredMat) <- c(gsub("_Pred", "", Models),"Ensemble")
+  print(dim(PredMat))
+  #############
+  PredList <- list(PredMat=PredMat, ObservVec=ObservVec)
+  return(PredList)
 }
 
