@@ -1,3 +1,13 @@
+############################# PreProcess is a function which extract the feature and observation information data from PharmacoGx package for the drug and tissues onf interest and return them in format ready for direct use in the modeling functions.
+############################# Input variables of this function are as follows:
+############################# 1) PSet: Name of PSet in PharmacoGx package to extract the pharmacogenomics data from
+############################# 2) Tissue: Vector of tissue names. All cell lines in these tissues which have been tested for the target drug and their responses are in the determined range will be included in the output
+############################# 3) Drug: Name of drug that its responses in cell lines of determined tissues will be modeled
+############################# 4) MolecularProfile: The type of molecular profile (Ex. "rna" for gene expression)
+############################# 5) Measure: Measure of sensitivity (Ex. "auc_recomputed" for recomputed area under the curve in PharmacoGx package)
+############################# 6) HighCutoff: Cutoff for minimum value of the sensitivity of each cell line for which the cell line is considered as sensitive
+############################# 7) HighCutoff: Cutoff for maximum value of the sensitivity of each cell line for which the cell line is considered as in-sensitive
+
 PreProcess <- function(PSet, Tissue, Drug, MolecularProfile, Measure, HighCutoff, LowCutoff){
   
   TargetPset <- downloadPSet(PSet)
@@ -18,10 +28,11 @@ PreProcess <- function(PSet, Tissue, Drug, MolecularProfile, Measure, HighCutoff
                                    intersect(toupper(colnames(SensProfile)), TargetCells))]
     
     if(Measure[MeasureIter] == "ic50_recomputed"){
-      ClassVec <- ifelse(ContVec < LowCutoff[MeasureIter], 1, ifelse(ContVec > HighCutoff[MeasureIter], 2,NA))
+      ClassVec <- ifelse(ContVec < LowCutoff[MeasureIter], 2, ifelse(ContVec > HighCutoff[MeasureIter], 1,NA))
     }else{
-      ClassVec <- ifelse(ContVec > HighCutoff[MeasureIter], 1, ifelse(ContVec < LowCutoff[MeasureIter], 2,NA))
+      ClassVec <- ifelse(ContVec > HighCutoff[MeasureIter], 2, ifelse(ContVec < LowCutoff[MeasureIter], 1,NA))
     }
+
     ObsMat <- rbind(ObsMat, ClassVec)
   }
   
@@ -30,9 +41,6 @@ PreProcess <- function(PSet, Tissue, Drug, MolecularProfile, Measure, HighCutoff
                        apply(ObsMat, 2, function(X){length(which(is.na(X)))}) == 0)
   Classes <- unlist(apply(ObsMat, 2, unique)[TargetInd])
   ##############
-  # TargetInd <- which(!is.na(ObsVec) & ObsVec != Inf)
-  # ObsVec <- as.numeric(ObsVec[TargetInd])
-  
   FeatureMat <- t(as.matrix(ExpProfile[,TargetInd]))
   TissuVec <- TissuVec[TargetInd]
   
@@ -40,19 +48,7 @@ PreProcess <- function(PSet, Tissue, Drug, MolecularProfile, Measure, HighCutoff
   colnames(FeatureMat) <- rownames(ExpProfile)
   
   FeatureFrame <- data.frame(FeatureMat)
-  #############
-  # Cutoff_High <- HighCutoff
-  # Cutoff_Low <- LowCutoff
-  # RemInd <- which(ObsVec >= Cutoff_Low & ObsVec <= Cutoff_High)
-  # 
-  # if(length(RemInd) > 0){
-  #   ObsVec <- ObsVec[-RemInd]
-  #   FeatureFrame <- FeatureFrame[-RemInd, ]
-  #   TissuVec <- TissuVec[-RemInd]
-  # }
-  
-  # Classes <- ifelse(ObsVec > Cutoff_High, 1, 2)
-  ############
+  ###########
   ProcessedList <- list(FeatFrame=FeatureFrame, Observations = Classes, Tissues=TissuVec)
   
   return(ProcessedList)
