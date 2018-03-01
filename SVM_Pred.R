@@ -1,3 +1,9 @@
+############################# SVM_Pred is a function that models response classes using  support vector machine.
+############################# Input variables of this function are as follows:
+############################# 1) TrainFeat: Feature frame (rows as samples and columns as features) for training set
+############################# 2) TrainObs: Observed classess for training
+############################# 3) TestFeat: Feature frame (rows as samples and columns as features) for testing
+
 SVM_Pred <- function(TrainFeat, TrainObs, TestFeat){
   
   # Training <- data.frame(TrainFeat)
